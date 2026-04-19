@@ -1,0 +1,111 @@
+// ============================================================
+// schema.prisma — SaaS Labs Financiero
+// Stack: Prisma + PostgreSQL (Supabase)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Sucursales ────────────────────────────────────────────────
+model Sucursal {
+  id           String         @id @default(uuid()) @db.Uuid
+  nombre       String
+  serie_prefix String         @unique // "VIT-" | "PROG-"
+  direccion    String?
+  telefono     String?
+  activa       Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  transacciones Transaccion[]
+  gastos        Gasto[]
+
+  @@map("sucursales")
+}
+
+// ── Categorías de gasto ───────────────────────────────────────
+model Categoria {
+  id          String  @id @default(uuid()) @db.Uuid
+  nombre      String  @unique
+  descripcion String?
+  color       String? // hex, para UI
+
+  gastos Gasto[]
+
+  @@map("categorias")
+}
+
+// ── Transacciones (Ingresos) ──────────────────────────────────
+model Transaccion {
+  id             String    @id @default(uuid()) @db.Uuid
+  cfdi           String?   @unique // UUID del CFDI
+  fecha          DateTime
+  mes            String?   // "MARZO", "ABRIL", etc.
+  serie          String    // "VIT-" | "PROG-"
+  folio          Int?
+  subtotal       Float
+  iva            Float     @default(0)
+  total          Float
+  forma_pago     String?   // "01 Efectivo", "03 Transferencia", "04 Tarjeta..."
+  metodo_pago    String?   // "PUE", "PPD"
+  uso_cfdi       String?   // "S01", "G03", etc.
+  emisor_rfc     String?
+  emisor_nombre  String?
+  emisor_regimen String?
+  tipo_gasto     String?   // Descripción libre del tipo
+  notas          String?
+  efectivo_depositado Boolean @default(false) // tracking de efectivo
+
+  sucursal_id    String    @db.Uuid
+  sucursal       Sucursal  @relation(fields: [sucursal_id], references: [id])
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt      @map("updated_at")
+
+  @@index([fecha])
+  @@index([serie])
+  @@index([sucursal_id])
+  @@index([mes])
+  @@map("transacciones")
+}
+
+// ── Gastos (Egresos) ──────────────────────────────────────────
+model Gasto {
+  id             String    @id @default(uuid()) @db.Uuid
+  cfdi           String?   @unique
+  fecha          DateTime
+  mes            String?
+  serie          String?
+  folio          String?
+  subtotal       Float
+  iva            Float     @default(0)
+  total          Float
+  forma_pago     String?
+  metodo_pago    String?
+  uso_cfdi       String?
+  emisor_rfc     String?
+  emisor_nombre  String?
+  emisor_regimen String?
+  descripcion    String?   // "MAQUILA17MARZO", "SOFTWARE MAR26", etc.
+  notas          String?
+
+  sucursal_id    String?   @db.Uuid
+  sucursal       Sucursal? @relation(fields: [sucursal_id], references: [id])
+
+  categoria_id   String?   @db.Uuid
+  categoria      Categoria? @relation(fields: [categoria_id], references: [id])
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt      @map("updated_at")
+
+  @@index([fecha])
+  @@index([sucursal_id])
+  @@index([mes])
+  @@map("gastos")
+}

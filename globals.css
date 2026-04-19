@@ -1,0 +1,96 @@
+/* app/globals.css */
+@import "tailwindcss";
+
+:root {
+  --color-bg-base: #020617;       /* slate-950 */
+  --color-bg-card: #0f172a;       /* slate-900 */
+  --color-bg-hover: #1e293b;      /* slate-800 */
+  --color-border: #1e293b;
+  --color-text-primary: #f1f5f9;  /* slate-100 */
+  --color-text-muted: #64748b;    /* slate-500 */
+  --color-accent: #10b981;        /* emerald-500 */
+  --color-danger: #f43f5e;        /* rose-500 */
+  --color-warning: #f59e0b;       /* amber-500 */
+  --color-info: #3b82f6;          /* blue-500 */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Animación de entrada suave para las tarjetas */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.3s ease both;
+}
+
+/* Skeleton loader */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #1e293b 25%,
+    #334155 50%,
+    #1e293b 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Tabla responsiva */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Badge de serie */
+.badge-vit {
+  background-color: rgba(0, 196, 159, 0.15);
+  color: #00c49f;
+  border: 1px solid rgba(0, 196, 159, 0.3);
+}
+.badge-prog {
+  background-color: rgba(0, 136, 254, 0.15);
+  color: #0088fe;
+  border: 1px solid rgba(0, 136, 254, 0.3);
+}

@@ -157,7 +157,7 @@ export default async function GastosPage({ searchParams }: PageProps) {
           promedio: total > 0 ? (sumaFiltrada._sum.total || 0) / total : 0,
         }}
         meta={{
-          categorias: categorias,
+          categorias: categorias.map((c) => ({ nombre: c.nombre, color: c.color ?? "" })),
           sucursales: sucursales.map((s) => s.nombre),
           formasPago: formasPago.map((f) => f.forma_pago!).filter(Boolean),
           proveedores: proveedoresTop.map((p) => p.emisor_nombre!).filter(Boolean),

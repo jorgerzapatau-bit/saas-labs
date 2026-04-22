@@ -35,8 +35,11 @@ interface PacientesData {
 // ── Bar chart pacientes ───────────────────────────────────────
 const CHART_H = 120;
 
-function PacBarChart({ data, sucursales }: { data: MesPac[]; sucursales: PacientesData["sucursales"] }) {
-  const maxPac = Math.max(...data.flatMap((m) => m.sucursales.map((s) => s.total_pacientes)), 1);
+function PacBarChart({ data, sucursales, mode }: { data: MesPac[]; sucursales: PacientesData["sucursales"]; mode: "pacientes" | "ingresos" }) {
+  const getValue = (r: SucursalResumenPac | undefined) =>
+    mode === "pacientes" ? (r?.total_pacientes || 0) : (r?.total_ingresos || 0);
+  const maxVal = Math.max(...data.flatMap((m) => m.sucursales.map((s) => getValue(s))), 1);
+
   return (
     <div className="w-full">
       <div className="flex items-end gap-1.5" style={{ height: CHART_H }}>
@@ -44,8 +47,8 @@ function PacBarChart({ data, sucursales }: { data: MesPac[]; sucursales: Pacient
           <div key={mes.mes_num} className="flex-1 flex items-end justify-center gap-0.5" style={{ height: "100%" }}>
             {sucursales.map((suc, i) => {
               const resumen = mes.sucursales.find((s) => s.id === suc.id);
-              const val = resumen?.total_pacientes || 0;
-              const barH = val > 0 ? Math.max(Math.round((val / maxPac) * CHART_H), 4) : 0;
+              const val = getValue(resumen);
+              const barH = val > 0 ? Math.max(Math.round((val / maxVal) * CHART_H), 4) : 0;
               return (
                 <div
                   key={suc.id}
@@ -54,7 +57,7 @@ function PacBarChart({ data, sucursales }: { data: MesPac[]; sucursales: Pacient
                 >
                   <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-slate-700">
                     <p className="font-medium">{suc.nombre.split(" ")[0]}</p>
-                    <p>{val} pac · {fmtK(resumen?.total_ingresos || 0)}</p>
+                    <p>{mode === "pacientes" ? `${val} pac` : fmtK(val)}</p>
                   </div>
                 </div>
               );
@@ -320,7 +323,7 @@ export default function DashboardClient({ data }: Props) {
                         </p>
                       </div>
                       <div>
-                        <p className="text-slate-500 text-xs mb-0.5">Días activos</p>
+                        <p className="text-slate-500 text-xs mb-0.5" title="Días con al menos 1 paciente atendido">Días con pacientes</p>
                         <p className="text-white font-semibold text-sm">
                           {pacLoading ? "…" : pacSuc?.dias ?? 0}
                         </p>
@@ -410,7 +413,7 @@ export default function DashboardClient({ data }: Props) {
                 </div>
               ) : pacData && pacData.meses.length > 0 ? (
                 <>
-                  <PacBarChart data={pacData.meses} sucursales={pacData.sucursales} />
+                  <PacBarChart data={pacData.meses} sucursales={pacData.sucursales} mode={pacTab} />
                   {/* Leyenda */}
                   <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-800">
                     {pacData.sucursales.map((suc, i) => (

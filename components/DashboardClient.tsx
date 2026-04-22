@@ -2,7 +2,7 @@
 // components/DashboardClient.tsx
 // Dashboard integrado: finanzas + pacientes en una sola pantalla
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { DashboardData } from "@/types";
 
@@ -135,10 +135,7 @@ function HeatmapDiario({ detalle, sucursales, mesLabel }: { detalle: DetalleDia[
   );
 }
 
-// ── Logo Vitana (base64 embebido) ─────────────────────────────
-
-
-// ── Filtros rápidos para el dashboard ───────────────────────
+// ── Constantes de filtros ────────────────────────────────────
 const RAPIDOS_DASH = [
   { key: "hoy",           label: "Hoy",            icon: "◉" },
   { key: "semana",        label: "Esta semana",     icon: "◈" },
@@ -147,17 +144,27 @@ const RAPIDOS_DASH = [
   { key: "efectivo",      label: "Solo efectivo",   icon: "💵" },
 ];
 
+interface FiltrosDash {
+  mes: string;
+  rapido: string;
+  sucursal: string;
+  depositado: string;
+}
+
 // ── Componente principal ──────────────────────────────────────
 interface Props { data: DashboardData }
 
 export default function DashboardClient({ data }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [mesActivo, setMesActivo] = useState(searchParams.get("mes") || "");
-  const [rapidoActivo, setRapidoActivo] = useState(searchParams.get("rapido") || "");
-  const [panelFiltros, setPanelFiltros] = useState(false);
-  const [filtroSucursal, setFiltroSucursal] = useState(searchParams.get("sucursal") || "todas");
-  const [filtroDeposito, setFiltroDeposito] = useState(searchParams.get("depositado") || "");
+
+  const [filtros, setFiltros] = useState<FiltrosDash>({
+    mes:       searchParams.get("mes")       || "",
+    rapido:    searchParams.get("rapido")    || "",
+    sucursal:  searchParams.get("sucursal")  || "todas",
+    depositado: searchParams.get("depositado") || "",
+  });
+  const [panelAbierto, setPanelAbierto] = useState(false);
 
   // ── Estado de pacientes ───────────────────────────────────
   const [pacData, setPacData]   = useState<PacientesData | null>(null);
@@ -178,66 +185,61 @@ export default function DashboardClient({ data }: Props) {
 
   useEffect(() => { loadPacientes(pacMes); }, [pacMes, loadPacientes]);
 
-  // Cuando cambia el mes del dashboard, sincronizamos pacientes si aplica
+  // Sincronizar mes de pacientes con filtro de mes
   useEffect(() => {
-    if (!mesActivo) { setPacMes(null); return; }
-    // Intentar mapear el nombre de mes a mes_num
+    if (!filtros.mes) { setPacMes(null); return; }
     const MESES: Record<string, number> = {
       ENERO:1, FEBRERO:2, MARZO:3, ABRIL:4, MAYO:5, JUNIO:6,
       JULIO:7, AGOSTO:8, SEPTIEMBRE:9, OCTUBRE:10, NOVIEMBRE:11, DICIEMBRE:12,
     };
-    const found = Object.entries(MESES).find(([k]) => k.startsWith(mesActivo.toUpperCase().slice(0, 3)));
+    const found = Object.entries(MESES).find(([k]) => k.startsWith(filtros.mes.toUpperCase().slice(0, 3)));
     setPacMes(found ? found[1] : null);
-  }, [mesActivo]);
+  }, [filtros.mes]);
 
-  // ── Filtro de mes → recarga desde servidor ──────────────────
-  function filtrarPorMes(mes: string) {
-    setMesActivo(mes);
-    const params = new URLSearchParams();
-    if (mes) params.set("mes", mes);
-    router.push(`/dashboard?${params.toString()}`);
-  }
+  // ── aplicar() — igual que TransaccionesClient ────────────────
+  const aplicar = useCallback((nuevo: Partial<FiltrosDash>) => {
+    const merged = { ...filtros, ...nuevo };
+    setFiltros(merged);
+    // Solo el mes va al servidor (recarga data); el resto es client-side
+    const p = new URLSearchParams();
+    if (merged.mes) p.set("mes", merged.mes);
+    router.push(`/dashboard?${p.toString()}`);
+  }, [filtros, router]);
 
-  // ── Filtros rápidos y avanzados → client-side ────────────────
-  function filtrarRapido(key: string) {
-    setRapidoActivo(rapidoActivo === key ? "" : key);
-  }
-
-  function aplicarFiltrosAvanzados(suc: string, dep: string) {
-    setFiltroSucursal(suc);
-    setFiltroDeposito(dep);
-  }
-
-  function limpiarFiltros() {
-    setMesActivo(""); setRapidoActivo(""); setFiltroSucursal("todas"); setFiltroDeposito("");
+  const limpiar = () => {
+    setFiltros({ mes: "", rapido: "", sucursal: "todas", depositado: "" });
     router.push("/dashboard");
-  }
+  };
 
-  const filtrosActivosCount = [
-    mesActivo, rapidoActivo,
-    filtroSucursal !== "todas" ? filtroSucursal : "",
-    filtroDeposito
-  ].filter(Boolean).length;
+  // ── Chips de filtros activos ──────────────────────────────────
+  const chips: { label: string; quitar: () => void }[] = [];
+  if (filtros.mes) chips.push({ label: filtros.mes.charAt(0) + filtros.mes.slice(1).toLowerCase(), quitar: () => aplicar({ mes: "" }) });
+  if (filtros.rapido) chips.push({ label: RAPIDOS_DASH.find(r => r.key === filtros.rapido)?.label || filtros.rapido, quitar: () => aplicar({ rapido: "" }) });
+  if (filtros.sucursal && filtros.sucursal !== "todas") {
+    const suc = data.sucursales.find(s => s.id === filtros.sucursal);
+    chips.push({ label: suc?.nombre || filtros.sucursal, quitar: () => aplicar({ sucursal: "todas" }) });
+  }
+  if (filtros.depositado) chips.push({ label: filtros.depositado === "si" ? "Depositado ✓" : "Sin depositar ⚠", quitar: () => aplicar({ depositado: "" }) });
 
   // ── Datos filtrados client-side ──────────────────────────────
-  const sucursalesFiltradas = filtroSucursal && filtroSucursal !== "todas"
-    ? data.sucursales.filter((s) => s.id === filtroSucursal)
-    : data.sucursales;
+  const sucursalesFiltradas = useMemo(() =>
+    filtros.sucursal && filtros.sucursal !== "todas"
+      ? data.sucursales.filter((s) => s.id === filtros.sucursal)
+      : data.sucursales,
+  [data.sucursales, filtros.sucursal]);
 
-  // Filtro rápido sobre KPIs: ajusta etiqueta de período
-  const periodoLabel = rapidoActivo === "hoy" ? "Hoy"
-    : rapidoActivo === "semana" ? "Esta semana"
-    : rapidoActivo === "mes" ? "Este mes"
-    : rapidoActivo === "efectivo" ? "Solo efectivo"
-    : rapidoActivo === "sin_depositar" ? "Sin depositar"
-    : mesActivo ? mesActivo.charAt(0) + mesActivo.slice(1).toLowerCase()
+  const periodoLabel = filtros.rapido === "hoy" ? "Hoy"
+    : filtros.rapido === "semana" ? "Esta semana"
+    : filtros.rapido === "mes" ? "Este mes"
+    : filtros.rapido === "efectivo" ? "Solo efectivo"
+    : filtros.rapido === "sin_depositar" ? "Sin depositar"
+    : filtros.mes ? filtros.mes.charAt(0) + filtros.mes.slice(1).toLowerCase()
     : data.periodo;
 
-  // KPIs ajustados según filtro de sucursal
   const totalIngresosFiltrado = sucursalesFiltradas.reduce((s, r) => s + r.total_ingresos, 0);
   const totalGastosFiltrado   = sucursalesFiltradas.reduce((s, r) => s + r.total_gastos, 0);
   const utilidadFiltrada      = totalIngresosFiltrado - totalGastosFiltrado;
-  const efectivoFiltrado      = filtroDeposito === "si" ? 0
+  const efectivoFiltrado      = filtros.depositado === "si" ? 0
     : sucursalesFiltradas.reduce((s, r) => s + r.efectivo_sin_depositar, 0);
   const margenUtilidad = totalIngresosFiltrado > 0
     ? (utilidadFiltrada / totalIngresosFiltrado) * 100 : 0;
@@ -265,82 +267,76 @@ export default function DashboardClient({ data }: Props) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* ── Header ── */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-          {/* Filtros de mes */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => filtrarPorMes("")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                !mesActivo ? "bg-emerald-500 text-slate-900" : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              Todo
-            </button>
-            {mesesDisponibles.map((m) => (
+
+      {/* ── Header — igual a Transacciones ── */}
+      <div className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-white font-bold text-lg">Dashboard</h1>
+            <p className="text-slate-500 text-xs mt-0.5">
+              {chips.length > 0 ? `${chips.length} filtro${chips.length > 1 ? "s" : ""} activo${chips.length > 1 ? "s" : ""}` : "Sin filtros · " + data.periodo}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Filtros de mes */}
+            <div className="flex items-center gap-1 flex-wrap">
               <button
-                key={m}
-                onClick={() => filtrarPorMes(m)}
+                onClick={() => aplicar({ mes: "" })}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  mesActivo === m ? "bg-emerald-500 text-slate-900" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  !filtros.mes ? "bg-emerald-500 text-slate-900" : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`}
               >
-                {m.charAt(0) + m.slice(1).toLowerCase()}
+                Todo
               </button>
-            ))}
-          </div>
-
-          {/* Botón filtros avanzados + limpiar */}
-          <div className="flex items-center gap-2">
+              {mesesDisponibles.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => aplicar({ mes: m })}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    filtros.mes === m ? "bg-emerald-500 text-slate-900" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  {m.charAt(0) + m.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
             <button
-              onClick={() => setPanelFiltros(!panelFiltros)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                panelFiltros
-                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                  : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+              onClick={() => setPanelAbierto(!panelAbierto)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+                panelAbierto ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
               }`}
             >
-              ⚙ Filtros
-              {filtrosActivosCount > 0 && (
-                <span className="bg-emerald-500 text-slate-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{filtrosActivosCount}</span>
-              )}
+              ⚙ Filtros {chips.length > 0 && <span className="bg-emerald-500 text-slate-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{chips.length}</span>}
             </button>
-            {filtrosActivosCount > 0 && (
-              <button
-                onClick={limpiarFiltros}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/40 transition-colors"
-              >
+            {chips.length > 0 && (
+              <button onClick={limpiar} className="px-3 py-2 rounded-lg text-xs font-medium text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/40 transition-colors">
                 ✕ Limpiar
               </button>
             )}
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-6 py-6 space-y-5">
 
         {/* ── Panel de filtros avanzados ── */}
-        {panelFiltros && (
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Filtro Sucursal */}
-              <div className="flex flex-col gap-1.5">
+        {panelAbierto && (
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
                 <label className="text-slate-500 text-xs font-medium">Sucursal</label>
                 <select
-                  value={filtroSucursal}
-                  onChange={e => aplicarFiltrosAvanzados(e.target.value, filtroDeposito)}
+                  value={filtros.sucursal}
+                  onChange={e => aplicar({ sucursal: e.target.value })}
                   className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
                 >
-                  <option value="todas">Todas las sucursales</option>
+                  <option value="todas">Todas</option>
                   {data.sucursales.map(s => (
                     <option key={s.id} value={s.id}>{s.nombre}</option>
                   ))}
                 </select>
               </div>
-
-              {/* Estatus depósito */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 <label className="text-slate-500 text-xs font-medium">Estatus de depósito (efectivo)</label>
                 <div className="flex gap-2">
                   {[
@@ -348,15 +344,12 @@ export default function DashboardClient({ data }: Props) {
                     { key: "si", label: "✓ Depositado" },
                     { key: "no", label: "⚠ Pendiente" },
                   ].map(op => (
-                    <button
-                      key={op.key}
-                      onClick={() => aplicarFiltrosAvanzados(filtroSucursal, op.key)}
+                    <button key={op.key} onClick={() => aplicar({ depositado: op.key })}
                       className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
-                        filtroDeposito === op.key
+                        filtros.depositado === op.key
                           ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
                           : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
-                      }`}
-                    >
+                      }`}>
                       {op.label}
                     </button>
                   ))}
@@ -369,19 +362,29 @@ export default function DashboardClient({ data }: Props) {
         {/* ── Filtros rápidos ── */}
         <div className="flex gap-2 flex-wrap">
           {RAPIDOS_DASH.map(r => (
-            <button
-              key={r.key}
-              onClick={() => filtrarRapido(r.key)}
+            <button key={r.key}
+              onClick={() => aplicar({ rapido: filtros.rapido === r.key ? "" : r.key })}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                rapidoActivo === r.key
+                filtros.rapido === r.key
                   ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
                   : "bg-slate-900 border-slate-700 text-slate-400 hover:text-white hover:border-slate-600"
-              }`}
-            >
+              }`}>
               <span>{r.icon}</span> {r.label}
             </button>
           ))}
         </div>
+
+        {/* ── Chips de filtros activos ── */}
+        {chips.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {chips.map((chip, i) => (
+              <span key={i} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-2.5 py-1 rounded-full">
+                {chip.label}
+                <button onClick={chip.quitar} className="hover:text-white transition-colors leading-none">✕</button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* ── KPIs Financieros ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -397,7 +400,7 @@ export default function DashboardClient({ data }: Props) {
           <KPICard
             label="Efectivo sin depositar"
             value={fmt(efectivoFiltrado)}
-            sublabel={filtroDeposito === "si" ? "Todo depositado ✓" : "Riesgo de fuga"}
+            sublabel={filtros.depositado === "si" ? "Todo depositado ✓" : "Riesgo de fuga"}
             color="amber" icon="!" alert={efectivoFiltrado > 0}
           />
         </div>

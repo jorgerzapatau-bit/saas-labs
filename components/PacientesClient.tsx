@@ -33,41 +33,46 @@ interface ApiData {
 }
 
 // ── Mini BarChart ─────────────────────────────────────────────
+const CHART_H = 160; // px — altura del área de barras
+
 function BarChart({ data, sucursales }: { data: MesData[]; sucursales: ApiData["sucursales"] }) {
   const maxPac = Math.max(...data.flatMap((m) => m.sucursales.map((s) => s.total_pacientes)), 1);
 
   return (
     <div className="w-full">
-      <div className="flex items-end gap-1.5 h-48">
+      {/* Área de barras con altura fija en px */}
+      <div className="flex items-end gap-2" style={{ height: CHART_H }}>
         {data.map((mes) => (
-          <div key={mes.mes_num} className="flex-1 flex flex-col items-center gap-0.5">
-            <div className="w-full flex items-end gap-0.5 h-40">
-              {sucursales.map((suc, i) => {
-                const resumen = mes.sucursales.find((s) => s.id === suc.id);
-                const val = resumen?.total_pacientes || 0;
-                const height = maxPac > 0 ? Math.max((val / maxPac) * 100, val > 0 ? 4 : 0) : 0;
-                const color = i === 0 ? COLOR_ESP : COLOR_PROG;
-                return (
-                  <div key={suc.id} className="flex-1 flex flex-col items-center justify-end group relative">
-                    {val > 0 && (
-                      <div
-                        className="w-full rounded-t-sm transition-all duration-300 group-hover:opacity-80 cursor-default"
-                        style={{ height: `${height}%`, backgroundColor: color }}
-                      />
-                    )}
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-slate-700">
-                      <p className="font-medium">{suc.nombre.split(" ")[0]}</p>
-                      <p>{val} pac.</p>
-                      <p>{fmtK(resumen?.total_ingresos || 0)}</p>
-                    </div>
+          <div key={mes.mes_num} className="flex-1 flex items-end justify-center gap-1" style={{ height: "100%" }}>
+            {sucursales.map((suc, i) => {
+              const resumen = mes.sucursales.find((s) => s.id === suc.id);
+              const val    = resumen?.total_pacientes || 0;
+              const barH   = val > 0 ? Math.max(Math.round((val / maxPac) * CHART_H), 6) : 0;
+              const color  = i === 0 ? COLOR_ESP : COLOR_PROG;
+              return (
+                <div
+                  key={suc.id}
+                  className="relative group flex-1 max-w-[28px]"
+                  style={{ height: barH, backgroundColor: color, borderRadius: "3px 3px 0 0", cursor: "default" }}
+                >
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-slate-700">
+                    <p className="font-medium">{suc.nombre.split(" ")[0]}</p>
+                    <p>{val} pac.</p>
+                    <p>{fmtK(resumen?.total_ingresos || 0)}</p>
                   </div>
-                );
-              })}
-            </div>
-            <p className="text-slate-500 text-[9px] text-center leading-tight">
-              {mes.mes.slice(0, 3)}
-            </p>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Etiquetas de mes debajo */}
+      <div className="flex gap-2 mt-1">
+        {data.map((mes) => (
+          <div key={mes.mes_num} className="flex-1 text-center">
+            <span className="text-slate-500 text-[10px]">{mes.mes.slice(0, 3)}</span>
           </div>
         ))}
       </div>
@@ -91,32 +96,35 @@ function IngresosChart({ data, sucursales }: { data: MesData[]; sucursales: ApiD
 
   return (
     <div className="w-full">
-      <div className="flex items-end gap-1.5 h-40">
+      <div className="flex items-end gap-2" style={{ height: CHART_H }}>
         {data.map((mes) => (
-          <div key={mes.mes_num} className="flex-1 flex flex-col items-center gap-0.5">
-            <div className="w-full flex items-end gap-0.5 h-32">
-              {sucursales.map((suc, i) => {
-                const resumen = mes.sucursales.find((s) => s.id === suc.id);
-                const val = resumen?.total_ingresos || 0;
-                const height = maxIng > 0 ? Math.max((val / maxIng) * 100, val > 0 ? 4 : 0) : 0;
-                const color = i === 0 ? COLOR_ESP : COLOR_PROG;
-                return (
-                  <div key={suc.id} className="flex-1 flex flex-col items-center justify-end group relative">
-                    {val > 0 && (
-                      <div
-                        className="w-full rounded-t-sm transition-all duration-300 group-hover:opacity-80"
-                        style={{ height: `${height}%`, backgroundColor: color, opacity: 0.75 }}
-                      />
-                    )}
-                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-slate-700">
-                      <p>{suc.nombre.split(" ")[0]}</p>
-                      <p>{fmt(val)}</p>
-                    </div>
+          <div key={mes.mes_num} className="flex-1 flex items-end justify-center gap-1" style={{ height: "100%" }}>
+            {sucursales.map((suc, i) => {
+              const resumen = mes.sucursales.find((s) => s.id === suc.id);
+              const val    = resumen?.total_ingresos || 0;
+              const barH   = val > 0 ? Math.max(Math.round((val / maxIng) * CHART_H), 6) : 0;
+              const color  = i === 0 ? COLOR_ESP : COLOR_PROG;
+              return (
+                <div
+                  key={suc.id}
+                  className="relative group flex-1 max-w-[28px]"
+                  style={{ height: barH, backgroundColor: color, borderRadius: "3px 3px 0 0", opacity: 0.8, cursor: "default" }}
+                >
+                  <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-slate-700">
+                    <p>{suc.nombre.split(" ")[0]}</p>
+                    <p>{fmt(val)}</p>
                   </div>
-                );
-              })}
-            </div>
-            <p className="text-slate-500 text-[9px]">{mes.mes.slice(0, 3)}</p>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2 mt-1">
+        {data.map((mes) => (
+          <div key={mes.mes_num} className="flex-1 text-center">
+            <span className="text-slate-500 text-[10px]">{mes.mes.slice(0, 3)}</span>
           </div>
         ))}
       </div>

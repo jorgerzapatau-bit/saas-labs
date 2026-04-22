@@ -25,6 +25,9 @@ model Sucursal {
 
   transacciones Transaccion[]
   gastos        Gasto[]
+  reportesPacientes ReportePacientesDiario[]
+  costosFijos       CostoFijoMensual[]
+  ingresosSemanas   IngresoSemanal[]
 
   @@map("sucursales")
 }
@@ -109,3 +112,85 @@ model Gasto {
   @@index([mes])
   @@map("gastos")
 }
+
+// ============================================================
+// AGREGAR al final de schema.prisma (después del model Gasto)
+// Estas son las 3 tablas nuevas para Vitana Labs
+// ============================================================
+
+// ── Reporte Diario de Pacientes e Ingresos ────────────────────
+model ReportePacientesDiario {
+  id            String   @id @default(uuid()) @db.Uuid
+  sucursal_id   String   @db.Uuid
+  sucursal      Sucursal @relation(fields: [sucursal_id], references: [id], onDelete: Cascade)
+
+  anio          Int      @db.SmallInt
+  mes           String   // 'ENERO', 'FEBRERO', etc.
+  mes_num       Int      @db.SmallInt
+  dia           Int      @db.SmallInt
+
+  num_pacientes Int      @default(0)
+  ingreso_dia   Float    @default(0)
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([sucursal_id, anio, mes_num, dia])
+  @@index([sucursal_id])
+  @@index([anio, mes_num])
+  @@index([sucursal_id, anio, mes_num])
+  @@map("reporte_pacientes_diario")
+}
+
+// ── Costos Fijos Mensuales ────────────────────────────────────
+model CostoFijoMensual {
+  id          String    @id @default(uuid()) @db.Uuid
+  sucursal_id String?   @db.Uuid
+  sucursal    Sucursal? @relation(fields: [sucursal_id], references: [id], onDelete: SetNull)
+
+  anio        Int       @db.SmallInt
+  mes         String
+  mes_num     Int       @db.SmallInt
+
+  concepto    String
+  monto       Float     @default(0)
+  categoria   String?   // 'NOMINA', 'SERVICIOS', 'MAQUILA', etc.
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([sucursal_id])
+  @@index([anio, mes_num])
+  @@index([sucursal_id, anio, mes_num])
+  @@map("costos_fijos_mensuales")
+}
+
+// ── Ingresos Semanales ────────────────────────────────────────
+model IngresoSemanal {
+  id            String    @id @default(uuid()) @db.Uuid
+  sucursal_id   String?   @db.Uuid
+  sucursal      Sucursal? @relation(fields: [sucursal_id], references: [id], onDelete: SetNull)
+
+  anio          Int       @db.SmallInt
+  mes           String
+  mes_num       Int       @db.SmallInt
+
+  semana_codigo String    // 'SEMANA1', 'SEMANA2', etc.
+
+  tarjeta       Float     @default(0)
+  efectivo      Float     @default(0)
+  transferencia Float     @default(0)
+  total         Float     @default(0)
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@unique([sucursal_id, anio, mes_num, semana_codigo])
+  @@index([sucursal_id])
+  @@index([anio, mes_num])
+  @@map("ingresos_semanales")
+}
+
+// ── También agregar estas relaciones al model Sucursal ────────
+// (dentro del model Sucursal, agregar junto a transacciones/gastos):
+//
+//   reportesPacientes ReportePacientesDiario[]
+//   costosFijos       CostoFijoMensual[]
+//   ingresosSemanas   IngresoSemanal[]

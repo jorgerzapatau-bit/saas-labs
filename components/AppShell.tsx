@@ -1,15 +1,23 @@
 "use client";
-// components/AppShell.tsx
+// components/AppShell.tsx  ← REEMPLAZAR el archivo completo
 // Shell con sidebar de navegación — envuelve todas las páginas internas
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: "◈" },
-  { href: "/transacciones", label: "Ingresos", icon: "↑" },
-  { href: "/gastos", label: "Gastos", icon: "↓" },
-  { href: "/sucursales", label: "Sucursales", icon: "⊞" },
+  { href: "/dashboard",     label: "Dashboard",   icon: "◈" },
+  { href: "/transacciones", label: "Ingresos",    icon: "↑" },
+  { href: "/gastos",        label: "Gastos",      icon: "↓" },
+  { href: "/sucursales",    label: "Sucursales",  icon: "⊞" },
+];
+
+// Sección nueva — pantallas de análisis
+const NAV_ANALISIS = [
+  { href: "/pacientes",     label: "Pacientes",      icon: "👥" },
+  { href: "/costos",        label: "Costos",          icon: "🧾" },
+  { href: "/semanas",       label: "Sem. Ingresos",   icon: "📅" },
+  { href: "/rentabilidad",  label: "Rentabilidad",    icon: "📊" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -32,9 +40,31 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Nav principal */}
+        <nav className="px-3 py-4 space-y-1 border-b border-slate-800">
           {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800"
+                }`}
+              >
+                <span className="text-base w-5 text-center">{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Nav Análisis — sección nueva */}
+        <nav className="px-3 py-4 space-y-1 flex-1">
+          <p className="text-slate-600 text-[10px] font-medium uppercase tracking-wider px-3 pb-1">Análisis</p>
+          {NAV_ANALISIS.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
@@ -55,7 +85,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Footer del sidebar */}
         <div className="px-5 py-4 border-t border-slate-800">
-          <p className="text-slate-600 text-xs">v0.1.0 · 2 sucursales</p>
+          <p className="text-slate-600 text-xs">v0.2.0 · 2 sucursales</p>
         </div>
       </aside>
 

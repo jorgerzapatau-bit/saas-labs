@@ -41,12 +41,70 @@ interface ApiData {
 }
 
 // ── Donut chart SVG ───────────────────────────────────────────
-function DonutChart({ data }: { data: CatData[] }) {
+function DonutChart({ data, conceptos }: { data: CatData[]; conceptos?: Concepto[] }) {
   const total = data.reduce((s, d) => s + d.total, 0);
-  if (total === 0) return null;
+  if (total === 0) return <p className="text-slate-600 text-xs text-center py-8">Sin datos para este período</p>;
 
+  // Si solo hay una categoría (ej. todo es OTROS), mostramos breakdown por concepto
+  const isSingleCat = data.length === 1;
+
+  if (isSingleCat && conceptos && conceptos.length > 0) {
+    // Construir mini-categorías a partir de los conceptos más grandes
+    const sorted = [...conceptos].sort((a, b) => b.monto - a.monto);
+    const TOP = 6;
+    const topItems = sorted.slice(0, TOP);
+    const restTotal = sorted.slice(TOP).reduce((s, c) => s + c.monto, 0);
+    const displayItems: { label: string; total: number; color: string }[] = topItems.map((c, i) => ({
+      label: c.concepto,
+      total: c.monto,
+      color: PALETTE[i % PALETTE.length],
+    }));
+    if (restTotal > 0) displayItems.push({ label: "Resto", total: restTotal, color: "#334155" });
+
+    const grandTotal = displayItems.reduce((s, d) => s + d.total, 0);
+
+    return (
+      <div>
+        {/* Aviso de categoría */}
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-500/8 border border-amber-500/20 rounded-lg">
+          <span className="text-amber-400 text-xs">⚠</span>
+          <span className="text-amber-300/70 text-xs">Los conceptos no tienen categoría asignada. Mostrando desglose por concepto.</span>
+        </div>
+
+        {/* Mini barras horizontales por concepto */}
+        <div className="space-y-2">
+          {displayItems.map((item, i) => {
+            const pct = grandTotal > 0 ? (item.total / grandTotal) * 100 : 0;
+            return (
+              <div key={i} className="group">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: item.color }} />
+                  <span className="text-slate-300 text-xs flex-1 truncate" title={item.label}>{item.label}</span>
+                  <span className="text-slate-400 text-xs font-medium">{fmtK(item.total)}</span>
+                  <span className="text-slate-600 text-xs w-9 text-right">{pct.toFixed(1)}%</span>
+                </div>
+                <div className="ml-4 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${pct}%`, backgroundColor: item.color }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
+          <span className="text-slate-500 text-xs">{conceptos.length} conceptos en total</span>
+          <span className="text-white text-sm font-semibold">{fmtK(total)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Caso normal: múltiples categorías → donut
   let cumulativeAngle = -90;
-  const cx = 80, cy = 80, r = 60, innerR = 38;
+  const cx = 80, cy = 80, r = 62, innerR = 40;
   const slices = data.map((d) => {
     const pct   = d.total / total;
     const angle = pct * 360;
@@ -73,26 +131,30 @@ function DonutChart({ data }: { data: CatData[] }) {
 
   return (
     <div className="flex items-center gap-6">
-      <svg viewBox="0 0 160 160" className="w-40 h-40 flex-shrink-0">
+      <svg viewBox="0 0 160 160" className="w-36 h-36 flex-shrink-0">
         {slices.map((s) => (
           <path key={s.categoria} d={s.path} fill={catColor(s.categoria)} className="hover:opacity-80 transition-opacity cursor-default">
             <title>{s.categoria}: {fmt(s.total)} ({(s.pct * 100).toFixed(1)}%)</title>
           </path>
         ))}
-        <text x={cx} y={cy - 6} textAnchor="middle" className="text-xs" fill="#94a3b8" fontSize="9">Total</text>
-        <text x={cx} y={cy + 8} textAnchor="middle" fill="white" fontSize="11" fontWeight="600">{fmtK(total)}</text>
+        <text x={cx} y={cy - 6} textAnchor="middle" fill="#94a3b8" fontSize="9">Total</text>
+        <text x={cx} y={cy + 8} textAnchor="middle" fill="white" fontSize="12" fontWeight="700">{fmtK(total)}</text>
       </svg>
 
-      {/* Leyenda */}
       <div className="space-y-1.5 flex-1 min-w-0">
         {data.map((d) => {
           const pct = total > 0 ? (d.total / total) * 100 : 0;
           return (
-            <div key={d.categoria} className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: catColor(d.categoria) }} />
-              <span className="text-slate-400 text-xs flex-1 truncate">{d.categoria}</span>
-              <span className="text-slate-300 text-xs font-medium">{fmtK(d.total)}</span>
-              <span className="text-slate-600 text-xs w-10 text-right">{pct.toFixed(1)}%</span>
+            <div key={d.categoria}>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: catColor(d.categoria) }} />
+                <span className="text-slate-400 text-xs flex-1 truncate">{d.categoria}</span>
+                <span className="text-slate-300 text-xs font-medium">{fmtK(d.total)}</span>
+                <span className="text-slate-600 text-xs w-10 text-right">{pct.toFixed(1)}%</span>
+              </div>
+              <div className="ml-4 h-1 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: catColor(d.categoria) }} />
+              </div>
             </div>
           );
         })}
@@ -100,6 +162,12 @@ function DonutChart({ data }: { data: CatData[] }) {
     </div>
   );
 }
+
+// Paleta de colores para desglose por concepto
+const PALETTE = [
+  "#10b981", "#3b82f6", "#f59e0b", "#8b5cf6",
+  "#06b6d4", "#f43f5e", "#84cc16", "#fb923c",
+];
 
 // ── Barra comparativa horizontal ─────────────────────────────
 function BarraComparativa({ suc, maxTotal }: { suc: SucursalData; maxTotal: number }) {
@@ -293,7 +361,7 @@ export default function CostosClient() {
                 ))}
               </div>
             </div>
-            <DonutChart data={donutData} />
+            <DonutChart data={donutData} conceptos={conceptosFiltrados} />
           </div>
 
           {/* Comparativa barras horizontales */}

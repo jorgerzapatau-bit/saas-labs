@@ -159,9 +159,9 @@ export default function DashboardClient({ data }: Props) {
   const searchParams = useSearchParams();
 
   const [filtros, setFiltros] = useState<FiltrosDash>({
-    mes:       searchParams.get("mes")       || "",
-    rapido:    searchParams.get("rapido")    || "",
-    sucursal:  searchParams.get("sucursal")  || "todas",
+    mes:        searchParams.get("mes")        || "",
+    rapido:     searchParams.get("rapido")     || "",
+    sucursal:   searchParams.get("sucursal")   || "todas",
     depositado: searchParams.get("depositado") || "",
   });
   const [panelAbierto, setPanelAbierto] = useState(false);
@@ -196,13 +196,28 @@ export default function DashboardClient({ data }: Props) {
     setPacMes(found ? found[1] : null);
   }, [filtros.mes]);
 
-  // ── aplicar() — igual que TransaccionesClient ────────────────
+  // ── aplicar() — todos los filtros van al servidor via URL ────
   const aplicar = useCallback((nuevo: Partial<FiltrosDash>) => {
     const merged = { ...filtros, ...nuevo };
+
+    // Si se activa un rápido, limpiar el mes (son mutuamente excluyentes)
+    if (nuevo.rapido !== undefined && nuevo.rapido !== "") {
+      merged.mes = "";
+    }
+    // Si se activa un mes, limpiar el rápido
+    if (nuevo.mes !== undefined && nuevo.mes !== "") {
+      merged.rapido = "";
+    }
+
     setFiltros(merged);
-    // Solo el mes va al servidor (recarga data); el resto es client-side
+
+    // Todos los filtros activos se envían como query params al servidor
     const p = new URLSearchParams();
-    if (merged.mes) p.set("mes", merged.mes);
+    if (merged.mes)                              p.set("mes", merged.mes);
+    if (merged.rapido)                           p.set("rapido", merged.rapido);
+    if (merged.sucursal && merged.sucursal !== "todas") p.set("sucursal", merged.sucursal);
+    if (merged.depositado)                       p.set("depositado", merged.depositado);
+
     router.push(`/dashboard?${p.toString()}`);
   }, [filtros, router]);
 
@@ -221,28 +236,15 @@ export default function DashboardClient({ data }: Props) {
   }
   if (filtros.depositado) chips.push({ label: filtros.depositado === "si" ? "Depositado ✓" : "Sin depositar ⚠", quitar: () => aplicar({ depositado: "" }) });
 
-  // ── Datos filtrados client-side ──────────────────────────────
-  const sucursalesFiltradas = useMemo(() =>
-    filtros.sucursal && filtros.sucursal !== "todas"
-      ? data.sucursales.filter((s) => s.id === filtros.sucursal)
-      : data.sucursales,
-  [data.sucursales, filtros.sucursal]);
+  // ── Datos ya vienen filtrados desde el servidor ──────────────
+  // (no se necesita filtrar client-side — data refleja los filtros activos)
+  const totalIngresos   = data.gran_total_ingresos;
+  const totalGastos     = data.gran_total_gastos;
+  const utilidad        = data.utilidad_neta;
+  const efectivo        = data.efectivo_sin_depositar;
+  const margenUtilidad  = totalIngresos > 0 ? (utilidad / totalIngresos) * 100 : 0;
 
-  const periodoLabel = filtros.rapido === "hoy" ? "Hoy"
-    : filtros.rapido === "semana" ? "Esta semana"
-    : filtros.rapido === "mes" ? "Este mes"
-    : filtros.rapido === "efectivo" ? "Solo efectivo"
-    : filtros.rapido === "sin_depositar" ? "Sin depositar"
-    : filtros.mes ? filtros.mes.charAt(0) + filtros.mes.slice(1).toLowerCase()
-    : data.periodo;
-
-  const totalIngresosFiltrado = sucursalesFiltradas.reduce((s, r) => s + r.total_ingresos, 0);
-  const totalGastosFiltrado   = sucursalesFiltradas.reduce((s, r) => s + r.total_gastos, 0);
-  const utilidadFiltrada      = totalIngresosFiltrado - totalGastosFiltrado;
-  const efectivoFiltrado      = filtros.depositado === "si" ? 0
-    : sucursalesFiltradas.reduce((s, r) => s + r.efectivo_sin_depositar, 0);
-  const margenUtilidad = totalIngresosFiltrado > 0
-    ? (utilidadFiltrada / totalIngresosFiltrado) * 100 : 0;
+  const periodoLabel = data.periodo;
 
   const mesesDisponibles = Array.from(new Set(data.resumen_mensual.map((r) => r.mes))).sort();
 
@@ -265,10 +267,13 @@ export default function DashboardClient({ data }: Props) {
   const totalPacVis = pacTotalesSuc.reduce((s, r) => s + r.pacientes, 0);
   const mesLabelPac = pacData?.meses.find((m) => m.mes_num === pacMes)?.mes || "Todo el período";
 
+  // Para las tarjetas de sucursal, usar los datos que ya vienen del servidor
+  const sucursalesMostradas = data.sucursales;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
 
-      {/* ── Header — igual a Transacciones ── */}
+      {/* ── Header ── */}
       <div className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div>
@@ -281,9 +286,9 @@ export default function DashboardClient({ data }: Props) {
             {/* Filtros de mes */}
             <div className="flex items-center gap-1 flex-wrap">
               <button
-                onClick={() => aplicar({ mes: "" })}
+                onClick={() => aplicar({ mes: "", rapido: "" })}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  !filtros.mes ? "bg-emerald-500 text-slate-900" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  !filtros.mes && !filtros.rapido ? "bg-emerald-500 text-slate-900" : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`}
               >
                 Todo
@@ -331,6 +336,7 @@ export default function DashboardClient({ data }: Props) {
                   className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="todas">Todas</option>
+                  {/* Mostrar todas las sucursales disponibles en el catálogo */}
                   {data.sucursales.map(s => (
                     <option key={s.id} value={s.id}>{s.nombre}</option>
                   ))}
@@ -388,31 +394,31 @@ export default function DashboardClient({ data }: Props) {
 
         {/* ── KPIs Financieros ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard label="Ingresos" value={fmt(totalIngresosFiltrado)} sublabel={periodoLabel} color="emerald" icon="↑" />
-          <KPICard label="Egresos" value={fmt(totalGastosFiltrado)} sublabel="Gastos operativos" color="rose" icon="↓" />
+          <KPICard label="Ingresos" value={fmt(totalIngresos)} sublabel={periodoLabel} color="emerald" icon="↑" />
+          <KPICard label="Egresos" value={fmt(totalGastos)} sublabel="Gastos operativos" color="rose" icon="↓" />
           <KPICard
             label="Utilidad Neta"
-            value={fmt(utilidadFiltrada)}
+            value={fmt(utilidad)}
             sublabel={`Margen ${pct(margenUtilidad)}`}
-            color={utilidadFiltrada >= 0 ? "blue" : "amber"}
+            color={utilidad >= 0 ? "blue" : "amber"}
             icon="◆"
           />
           <KPICard
             label="Efectivo sin depositar"
-            value={fmt(efectivoFiltrado)}
+            value={fmt(efectivo)}
             sublabel={filtros.depositado === "si" ? "Todo depositado ✓" : "Riesgo de fuga"}
-            color="amber" icon="!" alert={efectivoFiltrado > 0}
+            color="amber" icon="!" alert={efectivo > 0}
           />
         </div>
 
-        {/* ── Sucursales — financiero + pacientes integrados ── */}
+        {/* ── Sucursales ── */}
         <section>
           <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-widest mb-3">Por sucursal</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sucursalesFiltradas.map((suc, i) => {
+            {sucursalesMostradas.map((suc, i) => {
               const color = COLORES_SUCURSAL[i % COLORES_SUCURSAL.length];
               const margen = suc.total_ingresos > 0 ? (suc.utilidad_bruta / suc.total_ingresos) * 100 : 0;
-              const porcentajeIngreso = totalIngresosFiltrado > 0 ? (suc.total_ingresos / totalIngresosFiltrado) * 100 : 0;
+              const porcentajeIngreso = totalIngresos > 0 ? (suc.total_ingresos / totalIngresos) * 100 : 0;
               const pacSuc = pacTotalesSuc.find((p) => p.id === suc.id);
               const ticketProm = pacSuc && pacSuc.pacientes > 0 ? suc.total_ingresos / pacSuc.pacientes : null;
 
@@ -420,7 +426,6 @@ export default function DashboardClient({ data }: Props) {
                 <div key={suc.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: color }} />
                   <div className="pl-4">
-                    {/* Header */}
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <span className="text-xs font-mono font-bold px-2 py-0.5 rounded" style={{ backgroundColor: color + "22", color }}>
@@ -435,12 +440,10 @@ export default function DashboardClient({ data }: Props) {
                       </div>
                     </div>
 
-                    {/* Barra */}
                     <div className="w-full bg-slate-800 rounded-full h-1 mb-4">
                       <div className="h-1 rounded-full" style={{ width: `${porcentajeIngreso}%`, backgroundColor: color }} />
                     </div>
 
-                    {/* Métricas financieras */}
                     <div className="grid grid-cols-3 gap-3 mb-4">
                       <div>
                         <p className="text-slate-500 text-xs mb-0.5">Ingresos</p>
@@ -456,7 +459,6 @@ export default function DashboardClient({ data }: Props) {
                       </div>
                     </div>
 
-                    {/* Separador + métricas clínicas */}
                     <div className="border-t border-slate-800 pt-3 grid grid-cols-3 gap-3">
                       <div>
                         <p className="text-slate-500 text-xs mb-0.5">Pacientes</p>
@@ -495,7 +497,6 @@ export default function DashboardClient({ data }: Props) {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-widest">Atención de pacientes</h2>
-            {/* Tabs pacientes / ingresos */}
             <div className="flex gap-1 p-0.5 bg-slate-800 rounded-lg text-xs">
               <button
                 onClick={() => setPacTab("pacientes")}
@@ -513,7 +514,6 @@ export default function DashboardClient({ data }: Props) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* KPIs clínicos */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
               <div>
                 <p className="text-slate-500 text-xs mb-1">Total pacientes</p>
@@ -546,7 +546,6 @@ export default function DashboardClient({ data }: Props) {
               </div>
             </div>
 
-            {/* Gráfica de barras por mes */}
             <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
               <p className="text-slate-400 text-xs font-medium mb-4">Comparativa mensual · 2026</p>
               {pacLoading ? (
@@ -556,7 +555,6 @@ export default function DashboardClient({ data }: Props) {
               ) : pacData && pacData.meses.length > 0 ? (
                 <>
                   <PacBarChart data={pacData.meses} sucursales={pacData.sucursales} mode={pacTab} />
-                  {/* Leyenda */}
                   <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-800">
                     {pacData.sucursales.map((suc, i) => (
                       <div key={suc.id} className="flex items-center gap-1.5">
@@ -566,7 +564,6 @@ export default function DashboardClient({ data }: Props) {
                     ))}
                   </div>
 
-                  {/* Tabla mensual compacta */}
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
@@ -622,7 +619,6 @@ export default function DashboardClient({ data }: Props) {
             </div>
           </div>
 
-          {/* Heatmap diario — colapsable al seleccionar un mes */}
           {pacMes && (
             <div className="mt-4 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
               <button

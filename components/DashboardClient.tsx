@@ -190,36 +190,22 @@ export default function DashboardClient({ data }: Props) {
     setPacMes(found ? found[1] : null);
   }, [mesActivo]);
 
+  // ── Filtro de mes → recarga desde servidor ──────────────────
   function filtrarPorMes(mes: string) {
     setMesActivo(mes);
     const params = new URLSearchParams();
     if (mes) params.set("mes", mes);
-    if (rapidoActivo) params.set("rapido", rapidoActivo);
-    if (filtroSucursal && filtroSucursal !== "todas") params.set("sucursal", filtroSucursal);
-    if (filtroDeposito) params.set("depositado", filtroDeposito);
     router.push(`/dashboard?${params.toString()}`);
   }
 
+  // ── Filtros rápidos y avanzados → client-side ────────────────
   function filtrarRapido(key: string) {
-    const next = rapidoActivo === key ? "" : key;
-    setRapidoActivo(next);
-    const params = new URLSearchParams();
-    if (mesActivo) params.set("mes", mesActivo);
-    if (next) params.set("rapido", next);
-    if (filtroSucursal && filtroSucursal !== "todas") params.set("sucursal", filtroSucursal);
-    if (filtroDeposito) params.set("depositado", filtroDeposito);
-    router.push(`/dashboard?${params.toString()}`);
+    setRapidoActivo(rapidoActivo === key ? "" : key);
   }
 
   function aplicarFiltrosAvanzados(suc: string, dep: string) {
     setFiltroSucursal(suc);
     setFiltroDeposito(dep);
-    const params = new URLSearchParams();
-    if (mesActivo) params.set("mes", mesActivo);
-    if (rapidoActivo) params.set("rapido", rapidoActivo);
-    if (suc && suc !== "todas") params.set("sucursal", suc);
-    if (dep) params.set("depositado", dep);
-    router.push(`/dashboard?${params.toString()}`);
   }
 
   function limpiarFiltros() {
@@ -233,9 +219,30 @@ export default function DashboardClient({ data }: Props) {
     filtroDeposito
   ].filter(Boolean).length;
 
+  // ── Datos filtrados client-side ──────────────────────────────
+  const sucursalesFiltradas = filtroSucursal && filtroSucursal !== "todas"
+    ? data.sucursales.filter((s) => s.id === filtroSucursal)
+    : data.sucursales;
+
+  // Filtro rápido sobre KPIs: ajusta etiqueta de período
+  const periodoLabel = rapidoActivo === "hoy" ? "Hoy"
+    : rapidoActivo === "semana" ? "Esta semana"
+    : rapidoActivo === "mes" ? "Este mes"
+    : rapidoActivo === "efectivo" ? "Solo efectivo"
+    : rapidoActivo === "sin_depositar" ? "Sin depositar"
+    : mesActivo ? mesActivo.charAt(0) + mesActivo.slice(1).toLowerCase()
+    : data.periodo;
+
+  // KPIs ajustados según filtro de sucursal
+  const totalIngresosFiltrado = sucursalesFiltradas.reduce((s, r) => s + r.total_ingresos, 0);
+  const totalGastosFiltrado   = sucursalesFiltradas.reduce((s, r) => s + r.total_gastos, 0);
+  const utilidadFiltrada      = totalIngresosFiltrado - totalGastosFiltrado;
+  const efectivoFiltrado      = filtroDeposito === "si" ? 0
+    : sucursalesFiltradas.reduce((s, r) => s + r.efectivo_sin_depositar, 0);
+  const margenUtilidad = totalIngresosFiltrado > 0
+    ? (utilidadFiltrada / totalIngresosFiltrado) * 100 : 0;
+
   const mesesDisponibles = Array.from(new Set(data.resumen_mensual.map((r) => r.mes))).sort();
-  const margenUtilidad = data.gran_total_ingresos > 0
-    ? (data.utilidad_neta / data.gran_total_ingresos) * 100 : 0;
 
   // Totales de pacientes por sucursal
   const pacTotalesSuc = pacData ? pacData.sucursales.map((suc) => {
@@ -261,27 +268,6 @@ export default function DashboardClient({ data }: Props) {
       {/* ── Header ── */}
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-          {/* Logo circular */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500/40 shadow-lg shadow-emerald-500/10 flex-shrink-0">
-              <img
-                src="/logo-vitana.png"
-                alt="Vitana Laboratorios"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // Fallback si no carga la imagen
-                  const t = e.currentTarget as HTMLImageElement;
-                  t.style.display = "none";
-                  t.parentElement!.innerHTML = '<div style="width:100%;height:100%;background:#10b981;display:flex;align-items:center;justify-content:center;"><span style="color:#0f172a;font-weight:900;font-size:14px">V</span></div>';
-                }}
-              />
-            </div>
-            <div>
-              <h1 className="text-white font-semibold text-sm leading-none">Vitana Labs</h1>
-              <p className="text-slate-500 text-xs mt-0.5">Panel del Dueño</p>
-            </div>
-          </div>
-
           {/* Filtros de mes */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
@@ -399,20 +385,20 @@ export default function DashboardClient({ data }: Props) {
 
         {/* ── KPIs Financieros ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard label="Ingresos" value={fmt(data.gran_total_ingresos)} sublabel={data.periodo} color="emerald" icon="↑" />
-          <KPICard label="Egresos" value={fmt(data.gran_total_gastos)} sublabel="Gastos operativos" color="rose" icon="↓" />
+          <KPICard label="Ingresos" value={fmt(totalIngresosFiltrado)} sublabel={periodoLabel} color="emerald" icon="↑" />
+          <KPICard label="Egresos" value={fmt(totalGastosFiltrado)} sublabel="Gastos operativos" color="rose" icon="↓" />
           <KPICard
             label="Utilidad Neta"
-            value={fmt(data.utilidad_neta)}
+            value={fmt(utilidadFiltrada)}
             sublabel={`Margen ${pct(margenUtilidad)}`}
-            color={data.utilidad_neta >= 0 ? "blue" : "amber"}
+            color={utilidadFiltrada >= 0 ? "blue" : "amber"}
             icon="◆"
           />
           <KPICard
             label="Efectivo sin depositar"
-            value={fmt(data.efectivo_sin_depositar)}
-            sublabel="Riesgo de fuga"
-            color="amber" icon="!" alert={data.efectivo_sin_depositar > 0}
+            value={fmt(efectivoFiltrado)}
+            sublabel={filtroDeposito === "si" ? "Todo depositado ✓" : "Riesgo de fuga"}
+            color="amber" icon="!" alert={efectivoFiltrado > 0}
           />
         </div>
 
@@ -420,10 +406,10 @@ export default function DashboardClient({ data }: Props) {
         <section>
           <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-widest mb-3">Por sucursal</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.sucursales.map((suc, i) => {
+            {sucursalesFiltradas.map((suc, i) => {
               const color = COLORES_SUCURSAL[i % COLORES_SUCURSAL.length];
               const margen = suc.total_ingresos > 0 ? (suc.utilidad_bruta / suc.total_ingresos) * 100 : 0;
-              const porcentajeIngreso = data.gran_total_ingresos > 0 ? (suc.total_ingresos / data.gran_total_ingresos) * 100 : 0;
+              const porcentajeIngreso = totalIngresosFiltrado > 0 ? (suc.total_ingresos / totalIngresosFiltrado) * 100 : 0;
               const pacSuc = pacTotalesSuc.find((p) => p.id === suc.id);
               const ticketProm = pacSuc && pacSuc.pacientes > 0 ? suc.total_ingresos / pacSuc.pacientes : null;
 

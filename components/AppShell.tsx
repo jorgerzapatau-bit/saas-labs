@@ -65,8 +65,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Header del drawer con botón cerrar */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-slate-900 font-black text-sm">V</span>
+            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-emerald-500/40 flex-shrink-0">
+              <img src="/logo-vitana.png" alt="Vitana Laboratorios" className="w-full h-full object-cover" />
             </div>
             <div>
               <p className="text-white font-semibold text-sm leading-none">Vitana Labs</p>
@@ -107,8 +107,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <span className="text-white text-sm font-semibold">{activeLabel}</span>
 
-          <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-            <span className="text-slate-900 font-black text-sm">V</span>
+          <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-500/40">
+            <img src="/logo-vitana.png" alt="Vitana Laboratorios" className="w-full h-full object-cover" />
           </div>
         </header>
 
@@ -158,8 +158,8 @@ function Logo() {
   return (
     <div className="px-5 py-6 border-b border-slate-800">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-slate-900 font-black text-sm">V</span>
+        <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-emerald-500/40 flex-shrink-0">
+          <img src="/logo-vitana.png" alt="Vitana Laboratorios" className="w-full h-full object-cover" />
         </div>
         <div>
           <p className="text-white font-semibold text-sm leading-none">Vitana Labs</p>

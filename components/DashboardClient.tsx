@@ -2,7 +2,7 @@
 // components/DashboardClient.tsx
 // Dashboard integrado: finanzas + pacientes en una sola pantalla
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { DashboardData } from "@/types";
 
@@ -150,7 +150,7 @@ const RAPIDOS_DASH = [
 // ── Componente principal ──────────────────────────────────────
 interface Props { data: DashboardData }
 
-function DashboardClientInner({ data }: Props) {
+export default function DashboardClient({ data }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mesActivo, setMesActivo] = useState(searchParams.get("mes") || "");
@@ -751,15 +751,6 @@ function DashboardClientInner({ data }: Props) {
         </footer>
       </main>
     </div>
-  );
-}
-
-// ── Export con Suspense (requerido por useSearchParams en Next.js) ──
-export default function DashboardClient({ data }: Props) {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
-      <DashboardClientInner data={data} />
-    </Suspense>
   );
 }
 

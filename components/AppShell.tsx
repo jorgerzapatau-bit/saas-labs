@@ -14,7 +14,7 @@ const NAV = [
 
 // Sección nueva — pantallas de análisis
 const NAV_ANALISIS = [
-  { href: "/pacientes",     label: "Pacientes",      icon: "👥" },
+  // Pacientes integrado en Dashboard
   { href: "/costos",        label: "Costos",          icon: "🧾" },
   { href: "/semanas",       label: "Sem. Ingresos",   icon: "📅" },
   { href: "/rentabilidad",  label: "Rentabilidad",    icon: "📊" },
